@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == 'edit' %}編集{% else %}やること{% endif %} | TODO NOTEBOOK{% endblock %}
+
+{% block content %}
+<section class="hero hero-compact">
+  <div>
+    <p class="eyebrow">{% if mode == 'edit' %}edit{% else %}new{% endif %}</p>
+    <h1>{% if mode == 'edit' %}ちょっと直す{% else %}やること{% endif %}</h1>
+  </div>
+</section>
+
+<div class="todo-form">
+  <form id="todo-form" method="post" novalidate>
+    <label class="field">
+      <span>タイトル <em>必須</em></span>
+      <input
+        type="text"
+        name="title"
+        maxlength="100"
+        required
+        value="{{ title_value }}"
+        placeholder="例）課題の提出"
+        autofocus
+      />
+    </label>
+
+    <label class="field">
+      <span>内容 <em>必須</em></span>
+      <textarea
+        name="content"
+        maxlength="2000"
+        rows="7"
+        required
+        placeholder="なにをやるか、ざっくり書こう"
+      >{{ content_value }}</textarea>
+    </label>
+
+    <label class="field field-narrow">
+      <span>期日 <em>必須</em></span>
+      <input type="date" name="due_date" required value="{{ due_date_value }}" />
+    </label>
+  </form>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit" form="todo-form">
+      {% if mode == 'edit' %}ほぞんする{% else %}作成{% endif %}
+    </button>
+    {% if mode == 'edit' %}
+    <form method="post" action="{{ url_for('delete_todo', todo_id=todo.id) }}" onsubmit="return confirm('このタスクを削除する？');">
+      <button class="btn btn-ghost" type="submit">削除</button>
+    </form>
+    {% else %}
+    <a class="btn btn-ghost" href="{{ url_for('index') }}">削除</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

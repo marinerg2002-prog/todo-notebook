@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}TODO NOTEBOOK{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=Nunito:wght@700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <div class="blob blob-a" aria-hidden="true"></div>
+    <div class="blob blob-b" aria-hidden="true"></div>
+    <div class="page">
+      <header class="site-header">
+        <a class="brand" href="{{ url_for('index') }}">
+          <span class="brand-mark" aria-hidden="true">✓</span>
+          <span>
+            <span class="brand-name">TODO NOTEBOOK</span>
+            <span class="brand-sub">ゆるっと、やることをメモ</span>
+          </span>
+        </a>
+        <nav class="nav">
+          <a class="btn btn-secondary{% if request.endpoint == 'index' %} is-active{% endif %}" href="{{ url_for('index') }}">一覧</a>
+          <a class="btn btn-primary" href="{{ url_for('new_todo') }}">＋作成</a>
+        </nav>
+      </header>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <ul class="flash-list">
+            {% for category, message in messages %}
+              <li class="flash flash-{{ category }}">{{ message }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      {% endwith %}
+
+      <main class="main">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </body>
+</html>

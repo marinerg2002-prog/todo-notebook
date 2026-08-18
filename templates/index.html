@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}一覧 | TODO NOTEBOOK{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">today's list</p>
+    <h1>いまのタスク</h1>
+    <div class="sort-switch" role="group" aria-label="並び順">
+      <a
+        class="sort-btn{% if sort == 'created' %} is-active{% endif %}"
+        href="{{ url_for('index', sort='created') }}"
+      >記録した日順</a>
+      <a
+        class="sort-btn{% if sort == 'due' %} is-active{% endif %}"
+        href="{{ url_for('index', sort='due') }}"
+      >期限が近い順</a>
+    </div>
+  </div>
+  <dl class="stats">
+    <div>
+      <dt>やること</dt>
+      <dd>{{ todos|length }}</dd>
+    </div>
+    <div>
+      <dt>今日まで</dt>
+      <dd>{{ due_today_count }}</dd>
+    </div>
+    <div>
+      <dt>期限ぎれ</dt>
+      <dd>{{ overdue_count }}</dd>
+    </div>
+  </dl>
+</section>
+
+{% if todos %}
+  <ul class="todo-list">
+    {% for todo in todos %}
+      {% set days = todo.remaining_days(today) %}
+      <li class="todo-card {% if todo.is_overdue(today) %}is-overdue{% elif todo.is_today(today) %}is-today{% endif %}">
+        <div class="date-block" aria-label="期日 {{ todo.due_date }}">
+          <span class="date-month">{{ todo.due_month() }}月</span>
+          <span class="date-day">{{ todo.due_day() }}</span>
+        </div>
+        <div class="todo-body">
+          <div class="todo-top">
+            <h2>
+              {{ todo.title }}
+              {% if todo.id == new_todo_id %}
+                <span class="new-flag">New！</span>
+              {% endif %}
+            </h2>
+            {% if days is none %}
+              <span class="badge">期日なし</span>
+            {% elif days < 0 %}
+              <span class="badge badge-overdue">{{ -days }}日オーバー</span>
+            {% elif days == 0 %}
+              <span class="badge badge-today">今日まで！</span>
+            {% else %}
+              <span class="badge">あと{{ days }}日</span>
+            {% endif %}
+          </div>
+          <p class="todo-content">{{ todo.content }}</p>
+          <div class="todo-actions">
+            <a class="btn btn-ghost" href="{{ url_for('edit_todo', todo_id=todo.id) }}">編集</a>
+            <form method="post" action="{{ url_for('delete_todo', todo_id=todo.id) }}" onsubmit="return confirm('このタスクを削除する？');">
+              <button class="btn btn-text" type="submit">削除</button>
+            </form>
+          </div>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <div class="empty">
+    <p class="empty-kana">まだ何もないみたい</p>
+    <p>最初のタスクを書いてみよう。</p>
+    <a class="btn btn-primary" href="{{ url_for('new_todo') }}">タスクを作成</a>
+  </div>
+{% endif %}
+{% endblock %}
