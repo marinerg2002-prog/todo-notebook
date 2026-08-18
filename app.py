@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
+from pathlib import Path
 
 from dotenv import load_dotenv
 from flask import Flask, flash, redirect, render_template, request, session, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
+from whitenoise import WhiteNoise
 
 from storage import JST, StorageError, get_storage
 
@@ -14,6 +17,12 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-in-production")
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+app.wsgi_app = WhiteNoise(
+    app.wsgi_app,
+    root=str(Path(__file__).resolve().parent / "static"),
+    prefix="/static/",
+)
 
 TITLE_MAX = 100
 CONTENT_MAX = 2000
