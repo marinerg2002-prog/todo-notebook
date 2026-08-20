@@ -186,7 +186,6 @@ def delete_todo(todo_id: str):
         get_storage().delete_todo(todo_id)
         if session.get("new_todo_id") == todo_id:
             session.pop("new_todo_id", None)
-        flash("消したよ！", "success")
     except StorageError as exc:
         flash(str(exc), "error")
     return redirect(url_for("index"))
