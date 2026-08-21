@@ -11,6 +11,7 @@ from flask import Flask, flash, redirect, render_template, request, session, url
 from werkzeug.middleware.proxy_fix import ProxyFix
 from whitenoise import WhiteNoise
 
+from remind import ReminderError, format_reminder, line_configured, mailto_link, reminder_todos, send_line
 from storage import JST, StorageError, get_storage
 
 load_dotenv()
@@ -30,6 +31,16 @@ CONTENT_MAX = 2000
 
 def today_str() -> str:
     return datetime.now(JST).strftime("%Y-%m-%d")
+
+
+def list_url(**overrides) -> str:
+    params = {
+        "sort": request.args.get("sort", request.form.get("sort", "created")),
+        "status": request.args.get("status", request.form.get("status", "open")),
+        "q": request.args.get("q", request.form.get("q", "")).strip(),
+    }
+    params.update(overrides)
+    return url_for("index", **{key: value for key, value in params.items() if value})
 
 
 def validate_form(title: str, content: str, due_date: str) -> list[str]:
@@ -56,6 +67,7 @@ def validate_form(title: str, content: str, due_date: str) -> list[str]:
 def inject_globals():
     return {
         "today": today_str(),
+        "list_url": list_url,
     }
 
 
@@ -64,6 +76,10 @@ def index():
     sort = request.args.get("sort", "created")
     if sort not in {"created", "due"}:
         sort = "created"
+    status = request.args.get("status", "open")
+    if status not in {"open", "done", "all"}:
+        status = "open"
+    query = request.args.get("q", "").strip()
     try:
         todos = get_storage().list_todos()
     except StorageError as exc:
@@ -73,15 +89,34 @@ def index():
         todos = sorted(todos, key=lambda t: (t.due_date or "9999-99-99", t.created_at))
     else:
         todos = sorted(todos, key=lambda t: t.created_at, reverse=True)
+
     today = today_str()
-    overdue_count = sum(1 for todo in todos if todo.is_overdue(today))
-    due_today_count = sum(1 for todo in todos if todo.is_today(today))
+    open_todos = [todo for todo in todos if not todo.done]
+    overdue_count = sum(1 for todo in open_todos if todo.is_overdue(today))
+    due_today_count = sum(1 for todo in open_todos if todo.is_today(today))
+
+    visible = todos
+    if status == "open":
+        visible = open_todos
+    elif status == "done":
+        visible = [todo for todo in todos if todo.done]
+    if query:
+        needle = query.lower()
+        visible = [
+            todo
+            for todo in visible
+            if needle in todo.title.lower() or needle in todo.content.lower()
+        ]
+
     return render_template(
         "index.html",
-        todos=todos,
+        todos=visible,
+        total_open=len(open_todos),
         overdue_count=overdue_count,
         due_today_count=due_today_count,
         sort=sort,
+        status=status,
+        query=query,
         new_todo_id=session.get("new_todo_id"),
     )
 
@@ -180,6 +215,19 @@ def edit_todo(todo_id: str):
     )
 
 
+@app.route("/done/<todo_id>", methods=["POST"])
+def toggle_done(todo_id: str):
+    try:
+        todo = get_storage().get_todo(todo_id)
+        if todo is None:
+            flash("そのタスク、見つからなかったよ。", "error")
+        else:
+            get_storage().set_done(todo_id, not todo.done)
+    except StorageError as exc:
+        flash(str(exc), "error")
+    return redirect(list_url())
+
+
 @app.route("/delete/<todo_id>", methods=["POST"])
 def delete_todo(todo_id: str):
     try:
@@ -188,7 +236,40 @@ def delete_todo(todo_id: str):
             session.pop("new_todo_id", None)
     except StorageError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("index"))
+    return redirect(list_url())
+
+
+@app.route("/remind")
+def remind():
+    today = today_str()
+    try:
+        todos = reminder_todos(get_storage().list_todos(), today)
+    except StorageError as exc:
+        flash(str(exc), "error")
+        todos = []
+    text = format_reminder(todos, today)
+    return render_template(
+        "remind.html",
+        todos=todos,
+        reminder_text=text,
+        mailto=mailto_link(text),
+        line_ready=line_configured(),
+    )
+
+
+@app.route("/remind/line", methods=["POST"])
+def remind_line():
+    today = today_str()
+    try:
+        todos = reminder_todos(get_storage().list_todos(), today)
+        if not todos:
+            flash("送るタスクがありません。", "error")
+            return redirect(url_for("remind"))
+        send_line(format_reminder(todos, today))
+        flash("LINEに送りました。", "success")
+    except (StorageError, ReminderError) as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("remind"))
 
 
 if __name__ == "__main__":

@@ -7,20 +7,14 @@
     <p class="eyebrow">today's list</p>
     <h1>いまのタスク</h1>
     <div class="sort-switch" role="group" aria-label="並び順">
-      <a
-        class="sort-btn{% if sort == 'created' %} is-active{% endif %}"
-        href="{{ url_for('index', sort='created') }}"
-      >記録した日順</a>
-      <a
-        class="sort-btn{% if sort == 'due' %} is-active{% endif %}"
-        href="{{ url_for('index', sort='due') }}"
-      >期限が近い順</a>
+      <a class="sort-btn{% if sort == 'created' %} is-active{% endif %}" href="{{ list_url(sort='created') }}">記録した日順</a>
+      <a class="sort-btn{% if sort == 'due' %} is-active{% endif %}" href="{{ list_url(sort='due') }}">期限が近い順</a>
     </div>
   </div>
   <dl class="stats">
     <div>
       <dt>やること</dt>
-      <dd>{{ todos|length }}</dd>
+      <dd>{{ total_open }}</dd>
     </div>
     <div>
       <dt>今日まで</dt>
@@ -33,11 +27,30 @@
   </dl>
 </section>
 
+{% if due_today_count or overdue_count %}
+  <a class="remind-banner" href="{{ url_for('remind') }}">
+    未完了で、今日まで {{ due_today_count }} 件・期限ぎれ {{ overdue_count }} 件。リマインドを見る
+  </a>
+{% endif %}
+
+<form class="search-bar" method="get" action="{{ url_for('index') }}">
+  <input type="hidden" name="sort" value="{{ sort }}" />
+  <input type="hidden" name="status" value="{{ status }}" />
+  <input type="search" name="q" value="{{ query }}" placeholder="タイトルや内容で探す" />
+  <button class="btn btn-ghost" type="submit">検索</button>
+</form>
+
+<div class="sort-switch status-switch" role="group" aria-label="表示">
+  <a class="sort-btn{% if status == 'open' %} is-active{% endif %}" href="{{ list_url(status='open') }}">未完了</a>
+  <a class="sort-btn{% if status == 'done' %} is-active{% endif %}" href="{{ list_url(status='done') }}">完了</a>
+  <a class="sort-btn{% if status == 'all' %} is-active{% endif %}" href="{{ list_url(status='all') }}">すべて</a>
+</div>
+
 {% if todos %}
   <ul class="todo-list">
     {% for todo in todos %}
       {% set days = todo.remaining_days(today) %}
-      <li class="todo-card {% if todo.is_overdue(today) %}is-overdue{% elif todo.is_today(today) %}is-today{% endif %}">
+      <li class="todo-card {% if todo.done %}is-done{% elif todo.is_overdue(today) %}is-overdue{% elif todo.is_today(today) %}is-today{% endif %}">
         <div class="date-block" aria-label="期日 {{ todo.due_date }}">
           <span class="date-month">{{ todo.due_month() }}月</span>
           <span class="date-day">{{ todo.due_day() }}</span>
@@ -50,7 +63,9 @@
                 <span class="new-flag">New！</span>
               {% endif %}
             </h2>
-            {% if days is none %}
+            {% if todo.done %}
+              <span class="badge badge-done">完了</span>
+            {% elif days is none %}
               <span class="badge">期日なし</span>
             {% elif days < 0 %}
               <span class="badge badge-overdue">{{ -days }}日オーバー</span>
@@ -62,8 +77,17 @@
           </div>
           <p class="todo-content">{{ todo.content }}</p>
           <div class="todo-actions">
+            <form method="post" action="{{ url_for('toggle_done', todo_id=todo.id) }}">
+              <input type="hidden" name="sort" value="{{ sort }}" />
+              <input type="hidden" name="status" value="{{ status }}" />
+              <input type="hidden" name="q" value="{{ query }}" />
+              <button class="btn btn-ghost" type="submit">{% if todo.done %}未完了に戻す{% else %}完了{% endif %}</button>
+            </form>
             <a class="btn btn-ghost" href="{{ url_for('edit_todo', todo_id=todo.id) }}">編集</a>
             <form method="post" action="{{ url_for('delete_todo', todo_id=todo.id) }}" onsubmit="return confirm('このタスクを削除する？');">
+              <input type="hidden" name="sort" value="{{ sort }}" />
+              <input type="hidden" name="status" value="{{ status }}" />
+              <input type="hidden" name="q" value="{{ query }}" />
               <button class="btn btn-text" type="submit">削除</button>
             </form>
           </div>
@@ -73,8 +97,19 @@
   </ul>
 {% else %}
   <div class="empty">
-    <p class="empty-kana">まだ何もないみたい</p>
-    <p>最初のタスクを書いてみよう。</p>
+    {% if query %}
+      <p class="empty-kana">見つからなかった</p>
+      <p>検索ワードを変えてみてね。</p>
+    {% elif status == 'done' %}
+      <p class="empty-kana">完了したタスクはまだない</p>
+      <p>終わったら「完了」を押そう。</p>
+    {% elif status == 'open' %}
+      <p class="empty-kana">未完了のタスクはないよ</p>
+      <p>全部終わったか、まだ1件も作っていないか。</p>
+    {% else %}
+      <p class="empty-kana">まだ何もないみたい</p>
+      <p>最初のタスクを書いてみよう。</p>
+    {% endif %}
     <a class="btn btn-primary" href="{{ url_for('new_todo') }}">タスクを作成</a>
   </div>
 {% endif %}

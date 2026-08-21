@@ -12,7 +12,7 @@ from pathlib import Path
 
 JST = timezone(timedelta(hours=9))
 
-HEADERS = ["id", "title", "content", "due_date", "created_at", "updated_at"]
+HEADERS = ["id", "title", "content", "due_date", "created_at", "updated_at", "done"]
 
 
 def now_iso() -> str:
@@ -23,6 +23,36 @@ def new_id() -> str:
     return uuid.uuid4().hex[:10]
 
 
+def parse_done(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "完了"}
+
+
+def todo_from_record(record: dict) -> Todo:
+    return Todo(
+        id=str(record.get("id", "")).strip(),
+        title=str(record.get("title", "")),
+        content=str(record.get("content", "")),
+        due_date=str(record.get("due_date", "")),
+        created_at=str(record.get("created_at", "")),
+        updated_at=str(record.get("updated_at", "")),
+        done=parse_done(record.get("done", "")),
+    )
+
+
+def sheet_row(todo: Todo) -> list:
+    return [
+        todo.id,
+        todo.title,
+        todo.content,
+        todo.due_date,
+        todo.created_at,
+        todo.updated_at,
+        "TRUE" if todo.done else "",
+    ]
+
+
 @dataclass
 class Todo:
     id: str
@@ -31,6 +61,7 @@ class Todo:
     due_date: str
     created_at: str
     updated_at: str
+    done: bool = False
 
     def remaining_days(self, today: str) -> int | None:
         if not self.due_date:
@@ -82,6 +113,10 @@ class TodoStorage(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def set_done(self, todo_id: str, done: bool) -> Todo:
+        raise NotImplementedError
+
+    @abstractmethod
     def delete_todo(self, todo_id: str) -> None:
         raise NotImplementedError
 
@@ -108,7 +143,7 @@ class LocalJsonStorage(TodoStorage):
         )
 
     def list_todos(self) -> list[Todo]:
-        todos = [Todo(**row) for row in self._read()]
+        todos = [todo_from_record(row) for row in self._read()]
         return sorted(todos, key=lambda t: (t.due_date or "9999-99-99", t.created_at))
 
     def get_todo(self, todo_id: str) -> Todo | None:
@@ -127,6 +162,7 @@ class LocalJsonStorage(TodoStorage):
             due_date=due_date,
             created_at=stamp,
             updated_at=stamp,
+            done=False,
         )
         rows.append(asdict(todo))
         self._write(rows)
@@ -141,7 +177,17 @@ class LocalJsonStorage(TodoStorage):
                 row["due_date"] = due_date
                 row["updated_at"] = now_iso()
                 self._write(rows)
-                return Todo(**row)
+                return todo_from_record(row)
+        raise StorageError("指定されたやることが見つかりませんでした。")
+
+    def set_done(self, todo_id: str, done: bool) -> Todo:
+        rows = self._read()
+        for row in rows:
+            if row["id"] == todo_id:
+                row["done"] = done
+                row["updated_at"] = now_iso()
+                self._write(rows)
+                return todo_from_record(row)
         raise StorageError("指定されたやることが見つかりませんでした。")
 
     def delete_todo(self, todo_id: str) -> None:
@@ -223,9 +269,12 @@ class GoogleSheetsStorage(TodoStorage):
         values = worksheet.get_all_values()
         if not values:
             worksheet.append_row(HEADERS, value_input_option="USER_ENTERED")
-        elif values[0] != HEADERS:
-            # Keep existing data if headers already look compatible; otherwise write headers.
-            if [h.strip().lower() for h in values[0]] != HEADERS:
+        else:
+            current = [h.strip().lower() for h in values[0]]
+            if current[:6] == ["id", "title", "content", "due_date", "created_at", "updated_at"]:
+                if len(current) < 7 or current[6] != "done":
+                    worksheet.update_acell("G1", "done")
+            elif current != HEADERS:
                 worksheet.insert_row(HEADERS, index=1)
 
         self._worksheet = worksheet
@@ -247,6 +296,7 @@ class GoogleSheetsStorage(TodoStorage):
                     "due_date": str(record.get("due_date", "")),
                     "created_at": str(record.get("created_at", "")),
                     "updated_at": str(record.get("updated_at", "")),
+                    "done": record.get("done", ""),
                 }
             )
         return todos
@@ -259,7 +309,7 @@ class GoogleSheetsStorage(TodoStorage):
         return cell.row
 
     def list_todos(self) -> list[Todo]:
-        todos = [Todo(**row) for row in self._rows()]
+        todos = [todo_from_record(row) for row in self._rows()]
         return sorted(todos, key=lambda t: (t.due_date or "9999-99-99", t.created_at))
 
     def get_todo(self, todo_id: str) -> Todo | None:
@@ -277,11 +327,9 @@ class GoogleSheetsStorage(TodoStorage):
             due_date=due_date,
             created_at=stamp,
             updated_at=stamp,
+            done=False,
         )
-        self._sheet().append_row(
-            [todo.id, todo.title, todo.content, todo.due_date, todo.created_at, todo.updated_at],
-            value_input_option="USER_ENTERED",
-        )
+        self._sheet().append_row(sheet_row(todo), value_input_option="USER_ENTERED")
         return todo
 
     def update_todo(self, todo_id: str, title: str, content: str, due_date: str) -> Todo:
@@ -295,18 +343,33 @@ class GoogleSheetsStorage(TodoStorage):
             due_date=due_date,
             created_at=existing.created_at,
             updated_at=now_iso(),
+            done=existing.done,
         )
         row_number = self._find_row_number(todo_id)
         self._sheet().update(
-            f"A{row_number}:F{row_number}",
-            [[
-                updated.id,
-                updated.title,
-                updated.content,
-                updated.due_date,
-                updated.created_at,
-                updated.updated_at,
-            ]],
+            f"A{row_number}:G{row_number}",
+            [sheet_row(updated)],
+            value_input_option="USER_ENTERED",
+        )
+        return updated
+
+    def set_done(self, todo_id: str, done: bool) -> Todo:
+        existing = self.get_todo(todo_id)
+        if existing is None:
+            raise StorageError("指定されたやることが見つかりませんでした。")
+        updated = Todo(
+            id=existing.id,
+            title=existing.title,
+            content=existing.content,
+            due_date=existing.due_date,
+            created_at=existing.created_at,
+            updated_at=now_iso(),
+            done=done,
+        )
+        row_number = self._find_row_number(todo_id)
+        self._sheet().update(
+            f"A{row_number}:G{row_number}",
+            [sheet_row(updated)],
             value_input_option="USER_ENTERED",
         )
         return updated

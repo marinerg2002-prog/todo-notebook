@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=Nunito:wght@700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=3" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=4" />
   </head>
   <body>
     <div class="blob blob-a" aria-hidden="true"></div>
@@ -26,6 +26,7 @@
         </a>
         <nav class="nav">
           <a class="btn btn-secondary{% if request.endpoint == 'index' %} is-active{% endif %}" href="{{ url_for('index') }}">一覧</a>
+          <a class="btn btn-mint{% if request.endpoint == 'remind' %} is-active{% endif %}" href="{{ url_for('remind') }}">リマインド</a>
           <a class="btn btn-primary" href="{{ url_for('new_todo') }}">＋作成</a>
         </nav>
       </header>

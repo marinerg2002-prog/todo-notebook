@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}リマインド | TODO NOTEBOOK{% endblock %}
+
+{% block content %}
+<section class="hero hero-compact">
+  <div>
+    <p class="eyebrow">reminder</p>
+    <h1>期日リマインド</h1>
+    <p class="lede">未完了で、今日まで・期限ぎれのタスクをまとめて確認できるよ。</p>
+  </div>
+</section>
+
+{% if todos %}
+  <ul class="todo-list">
+    {% for todo in todos %}
+      {% set days = todo.remaining_days(today) %}
+      <li class="todo-card {% if todo.is_overdue(today) %}is-overdue{% else %}is-today{% endif %}">
+        <div class="date-block" aria-label="期日 {{ todo.due_date }}">
+          <span class="date-month">{{ todo.due_month() }}月</span>
+          <span class="date-day">{{ todo.due_day() }}</span>
+        </div>
+        <div class="todo-body">
+          <div class="todo-top">
+            <h2>{{ todo.title }}</h2>
+            {% if days < 0 %}
+              <span class="badge badge-overdue">{{ -days }}日オーバー</span>
+            {% else %}
+              <span class="badge badge-today">今日まで！</span>
+            {% endif %}
+          </div>
+          <p class="todo-content">{{ todo.content }}</p>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+
+  <div class="remind-actions">
+    <a class="btn btn-primary" href="{{ mailto }}">メールで知らせる</a>
+    {% if line_ready %}
+      <form method="post" action="{{ url_for('remind_line') }}">
+        <button class="btn btn-secondary" type="submit">LINEに送る</button>
+      </form>
+    {% else %}
+      <p class="remind-hint">LINEに送るには、Render の環境変数に LINE_CHANNEL_ACCESS_TOKEN と LINE_USER_ID を入れてね。</p>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="empty">
+    <p class="empty-kana">いま急ぐタスクはないよ</p>
+    <p>今日まで・期限ぎれの未完了がなければ、ここは空になる。</p>
+    <a class="btn btn-primary" href="{{ url_for('index') }}">一覧に戻る</a>
+  </div>
+{% endif %}
+{% endblock %}

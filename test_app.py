@@ -30,6 +30,13 @@ class LocalJsonStorageTest(unittest.TestCase):
         self.storage.delete_todo(created.id)
         self.assertEqual(self.storage.list_todos(), [])
 
+    def test_set_done(self) -> None:
+        created = self.storage.create_todo("課題", "書く", "2026-08-20")
+        self.assertFalse(created.done)
+        updated = self.storage.set_done(created.id, True)
+        self.assertTrue(updated.done)
+        self.assertTrue(self.storage.get_todo(created.id).done)
+
     def test_update_missing_raises(self) -> None:
         with self.assertRaises(StorageError):
             self.storage.update_todo("missing", "a", "b", "2026-08-20")
@@ -57,7 +64,7 @@ class FlaskAppTest(unittest.TestCase):
     def test_register_and_edit_flow(self) -> None:
         list_page = self.client.get("/")
         self.assertEqual(list_page.status_code, 200)
-        self.assertIn("まだ何もないみたい".encode("utf-8"), list_page.data)
+        self.assertIn("未完了のタスクはないよ".encode("utf-8"), list_page.data)
 
         created = self.client.post(
             "/new",
@@ -89,6 +96,31 @@ class FlaskAppTest(unittest.TestCase):
         self.assertEqual(edited.status_code, 200)
         self.assertIn("買い物リスト".encode("utf-8"), edited.data)
         self.assertIn("牛乳とパンを買う".encode("utf-8"), edited.data)
+
+    def test_complete_search_and_remind(self) -> None:
+        self.client.post(
+            "/new",
+            data={"title": "レポート", "content": "3章まで書く", "due_date": "2026-08-20"},
+            follow_redirects=True,
+        )
+        payload = json.loads(self.path.read_text(encoding="utf-8"))
+        todo_id = payload[0]["id"]
+
+        searched = self.client.get("/?q=レポート")
+        self.assertIn("レポート".encode("utf-8"), searched.data)
+        hidden = self.client.get("/?q=存在しない単語")
+        self.assertIn("見つからなかった".encode("utf-8"), hidden.data)
+
+        done = self.client.post(f"/done/{todo_id}", follow_redirects=True)
+        self.assertEqual(done.status_code, 200)
+        self.assertIn("未完了のタスクはないよ".encode("utf-8"), done.data)
+        completed = self.client.get("/?status=done")
+        self.assertIn("レポート".encode("utf-8"), completed.data)
+        self.assertIn("完了".encode("utf-8"), completed.data)
+
+        remind_page = self.client.get("/remind")
+        self.assertEqual(remind_page.status_code, 200)
+        self.assertIn("いま急ぐタスクはないよ".encode("utf-8"), remind_page.data)
 
 
 if __name__ == "__main__":
