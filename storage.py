@@ -266,16 +266,23 @@ class GoogleSheetsStorage(TodoStorage):
             worksheet = spreadsheet.add_worksheet(title="todos", rows=1000, cols=len(HEADERS))
             worksheet.append_row(HEADERS, value_input_option="USER_ENTERED")
 
-        values = worksheet.get_all_values()
-        if not values:
-            worksheet.append_row(HEADERS, value_input_option="USER_ENTERED")
-        else:
-            current = [h.strip().lower() for h in values[0]]
-            if current[:6] == ["id", "title", "content", "due_date", "created_at", "updated_at"]:
-                if len(current) < 7 or current[6] != "done":
-                    worksheet.update_acell("G1", "done")
-            elif current != HEADERS:
-                worksheet.insert_row(HEADERS, index=1)
+        try:
+            values = worksheet.get_all_values()
+            if not values:
+                worksheet.append_row(HEADERS, value_input_option="USER_ENTERED")
+            else:
+                current = [h.strip().lower() for h in values[0]]
+                if current[:6] == ["id", "title", "content", "due_date", "created_at", "updated_at"]:
+                    if len(current) < 7 or current[6] != "done":
+                        if worksheet.col_count < 7:
+                            worksheet.resize(cols=7)
+                        worksheet.update_acell("G1", "done")
+                elif current != [h.lower() for h in HEADERS]:
+                    worksheet.insert_row(HEADERS, index=1)
+        except StorageError:
+            raise
+        except Exception as exc:
+            raise StorageError(f"スプレッドシートの準備に失敗しました: {exc}") from exc
 
         self._worksheet = worksheet
         return worksheet
