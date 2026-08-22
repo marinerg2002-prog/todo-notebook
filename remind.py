@@ -1,12 +1,14 @@
-"""Build and send due-date reminders by email (mailto) or LINE."""
+"""Build and send due-date reminders by email or LINE."""
 
 from __future__ import annotations
 
 import json
 import os
+import smtplib
 import urllib.error
 import urllib.parse
 import urllib.request
+from email.mime.text import MIMEText
 
 from storage import Todo
 
@@ -35,6 +37,36 @@ def mailto_link(text: str) -> str:
     subject = urllib.parse.quote("TODO NOTEBOOK リマインド")
     body = urllib.parse.quote(text)
     return f"mailto:?subject={subject}&body={body}"
+
+
+def email_configured() -> bool:
+    return bool(os.getenv("SMTP_USER", "").strip() and os.getenv("SMTP_PASSWORD", "").strip())
+
+
+def send_email(text: str) -> None:
+    user = os.getenv("SMTP_USER", "").strip()
+    password = os.getenv("SMTP_PASSWORD", "").strip()
+    if not user or not password:
+        raise ReminderError(
+            "メールが未設定です。Render の環境変数に SMTP_USER と SMTP_PASSWORD を入れてください。"
+        )
+    to_addr = os.getenv("REMINDER_TO", "").strip() or user
+    host = os.getenv("SMTP_HOST", "smtp.gmail.com").strip() or "smtp.gmail.com"
+    port = int(os.getenv("SMTP_PORT", "587") or "587")
+
+    message = MIMEText(text, "plain", "utf-8")
+    message["Subject"] = "TODO NOTEBOOK リマインド"
+    message["From"] = user
+    message["To"] = to_addr
+    try:
+        with smtplib.SMTP(host, port, timeout=20) as smtp:
+            smtp.starttls()
+            smtp.login(user, password)
+            smtp.send_message(message)
+    except smtplib.SMTPException as exc:
+        raise ReminderError(f"メールの送信に失敗しました: {exc}") from exc
+    except OSError as exc:
+        raise ReminderError(f"メールサーバーに接続できませんでした: {exc}") from exc
 
 
 def line_configured() -> bool:

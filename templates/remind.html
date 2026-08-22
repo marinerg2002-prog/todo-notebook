@@ -35,7 +35,14 @@
   </ul>
 
   <div class="remind-actions">
-    <a class="btn btn-primary" href="{{ mailto }}">メールで知らせる</a>
+    {% if email_ready %}
+      <form method="post" action="{{ url_for('remind_email') }}">
+        <button class="btn btn-primary" type="submit">メールを送る</button>
+      </form>
+    {% else %}
+      <p class="remind-hint">アプリから直接送るには、Gmail のアプリパスワードを Render の環境変数（SMTP_USER / SMTP_PASSWORD）に入れてね。</p>
+      <a class="btn btn-ghost" href="{{ mailto }}">メールアプリで下書きを開く</a>
+    {% endif %}
     {% if line_ready %}
       <form method="post" action="{{ url_for('remind_line') }}">
         <button class="btn btn-secondary" type="submit">LINEに送る</button>

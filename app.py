@@ -11,7 +11,16 @@ from flask import Flask, flash, redirect, render_template, request, session, url
 from werkzeug.middleware.proxy_fix import ProxyFix
 from whitenoise import WhiteNoise
 
-from remind import ReminderError, format_reminder, line_configured, mailto_link, reminder_todos, send_line
+from remind import (
+    ReminderError,
+    email_configured,
+    format_reminder,
+    line_configured,
+    mailto_link,
+    reminder_todos,
+    send_email,
+    send_line,
+)
 from storage import JST, StorageError, get_storage
 
 load_dotenv()
@@ -253,8 +262,24 @@ def remind():
         todos=todos,
         reminder_text=text,
         mailto=mailto_link(text),
+        email_ready=email_configured(),
         line_ready=line_configured(),
     )
+
+
+@app.route("/remind/email", methods=["POST"])
+def remind_email():
+    today = today_str()
+    try:
+        todos = reminder_todos(get_storage().list_todos(), today)
+        if not todos:
+            flash("送るタスクがありません。", "error")
+            return redirect(url_for("remind"))
+        send_email(format_reminder(todos, today))
+        flash("メールを送りました。", "success")
+    except (StorageError, ReminderError) as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("remind"))
 
 
 @app.route("/remind/line", methods=["POST"])
