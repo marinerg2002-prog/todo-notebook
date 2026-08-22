@@ -40,7 +40,7 @@
         <button class="btn btn-primary" type="submit">メールを送る</button>
       </form>
     {% else %}
-      <p class="remind-hint">アプリから直接送るには、Gmail のアプリパスワードを Render の環境変数（SMTP_USER / SMTP_PASSWORD）に入れてね。</p>
+      <p class="remind-hint">アプリから直接送るには、Resend の APIキー（RESEND_API_KEY）と送り先（REMINDER_TO）を Render の環境変数に入れてね。無料の Render では Gmail の SMTP は使えません。</p>
       <a class="btn btn-ghost" href="{{ mailto }}">メールアプリで下書きを開く</a>
     {% endif %}
     {% if line_ready %}

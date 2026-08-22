@@ -40,15 +40,59 @@ def mailto_link(text: str) -> str:
 
 
 def email_configured() -> bool:
-    return bool(os.getenv("SMTP_USER", "").strip() and os.getenv("SMTP_PASSWORD", "").strip())
+    return bool(
+        os.getenv("RESEND_API_KEY", "").strip()
+        or (os.getenv("SMTP_USER", "").strip() and os.getenv("SMTP_PASSWORD", "").strip())
+    )
 
 
 def send_email(text: str) -> None:
+    if os.getenv("RESEND_API_KEY", "").strip():
+        _send_email_resend(text)
+        return
+    _send_email_smtp(text)
+
+
+def _send_email_resend(text: str) -> None:
+    api_key = os.getenv("RESEND_API_KEY", "").strip()
+    to_addr = os.getenv("REMINDER_TO", "").strip()
+    from_addr = os.getenv("RESEND_FROM", "").strip() or "TODO NOTEBOOK <onboarding@resend.dev>"
+    if not to_addr:
+        raise ReminderError("送り先が未設定です。Render の環境変数 REMINDER_TO にメールアドレスを入れてください。")
+    payload = json.dumps(
+        {
+            "from": from_addr,
+            "to": [to_addr],
+            "subject": "TODO NOTEBOOK リマインド",
+            "text": text,
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        urllib.request.urlopen(request, timeout=20)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")
+        raise ReminderError(f"メールの送信に失敗しました: {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise ReminderError(f"メールサービスに接続できませんでした: {exc}") from exc
+
+
+def _send_email_smtp(text: str) -> None:
     user = os.getenv("SMTP_USER", "").strip()
     password = os.getenv("SMTP_PASSWORD", "").strip()
     if not user or not password:
         raise ReminderError(
-            "メールが未設定です。Render の環境変数に SMTP_USER と SMTP_PASSWORD を入れてください。"
+            "メールが未設定です。Render 無料プランでは Gmail 直接送信が使えないので、"
+            "RESEND_API_KEY と REMINDER_TO を設定してください。"
         )
     to_addr = os.getenv("REMINDER_TO", "").strip() or user
     host = os.getenv("SMTP_HOST", "smtp.gmail.com").strip() or "smtp.gmail.com"
@@ -66,7 +110,12 @@ def send_email(text: str) -> None:
     except smtplib.SMTPException as exc:
         raise ReminderError(f"メールの送信に失敗しました: {exc}") from exc
     except OSError as exc:
-        raise ReminderError(f"メールサーバーに接続できませんでした: {exc}") from exc
+        raise ReminderError(
+            "メールサーバーに接続できませんでした。"
+            "Render の無料プランは Gmail（SMTP）への接続が禁止されています。"
+            "RESEND_API_KEY を使う方法に切り替えてください。"
+            f" 詳細: {exc}"
+        ) from exc
 
 
 def line_configured() -> bool:
