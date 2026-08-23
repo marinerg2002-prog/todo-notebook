@@ -109,7 +109,7 @@ class FlaskAppTest(unittest.TestCase):
         searched = self.client.get("/?q=レポート")
         self.assertIn("レポート".encode("utf-8"), searched.data)
         hidden = self.client.get("/?q=存在しない単語")
-        self.assertIn("見つからなかった".encode("utf-8"), hidden.data)
+        self.assertIn("みつかりませんでした".encode("utf-8"), hidden.data)
 
         done = self.client.post(f"/done/{todo_id}", follow_redirects=True)
         self.assertEqual(done.status_code, 200)
