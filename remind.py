@@ -74,6 +74,7 @@ def _send_email_resend(text: str) -> None:
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            "User-Agent": "todo-notebook/1.0",
         },
         method="POST",
     )
