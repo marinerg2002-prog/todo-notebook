@@ -280,18 +280,6 @@ h1 {
   min-height: 42px;
 }
 
-.remind-banner {
-  display: block;
-  margin: -8px 0 16px;
-  padding: 12px 16px;
-  border-radius: 16px;
-  background: #fff1d4;
-  color: #8a4b00;
-  text-decoration: none;
-  font-weight: 700;
-  box-shadow: var(--shadow);
-}
-
 .remind-actions {
   display: flex;
   flex-wrap: wrap;
@@ -454,8 +442,12 @@ h1 {
 }
 
 .badge-today {
-  background: #ffe9a8;
-  color: #9a5b00;
+  background: var(--coral);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 7px 12px;
+  box-shadow: 0 4px 0 #e56a4a;
 }
 
 .badge-overdue {
