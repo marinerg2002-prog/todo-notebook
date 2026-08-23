@@ -64,7 +64,7 @@ class FlaskAppTest(unittest.TestCase):
     def test_register_and_edit_flow(self) -> None:
         list_page = self.client.get("/")
         self.assertEqual(list_page.status_code, 200)
-        self.assertIn("未完了のタスクはないよ".encode("utf-8"), list_page.data)
+        self.assertIn("タスクはありません".encode("utf-8"), list_page.data)
 
         created = self.client.post(
             "/new",
@@ -113,7 +113,7 @@ class FlaskAppTest(unittest.TestCase):
 
         done = self.client.post(f"/done/{todo_id}", follow_redirects=True)
         self.assertEqual(done.status_code, 200)
-        self.assertIn("未完了のタスクはないよ".encode("utf-8"), done.data)
+        self.assertIn("タスクはありません".encode("utf-8"), done.data)
         completed = self.client.get("/?status=done")
         self.assertIn("レポート".encode("utf-8"), completed.data)
         self.assertIn("完了".encode("utf-8"), completed.data)
